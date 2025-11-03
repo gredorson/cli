@@ -9,6 +9,8 @@ import { createGraphCommand } from "./create";
 import { addVersionCommand } from "./add-version";
 import { deployGraphCommand } from "./deploy";
 import { updateGraphCommand } from "./update";
+import { infoCommand } from "./info";
+import { testCommand } from "./test";
 
 export const graphCommands = new Command("graph")
   .description("Manage graph versions and deployments")
@@ -18,7 +20,9 @@ export const graphCommands = new Command("graph")
   .addCommand(registerGraphCommand.name("register-legacy").alias("reg-legacy"))
   .addCommand(updateGraphCommand)
   .addCommand(listGraphsCommand)
+  .addCommand(infoCommand)
   .addCommand(publishGraphCommand)
   .addCommand(validateUnifiedCommand.name("validate").alias("val"))
   .addCommand(validateGraphCommand.name("validate-legacy").alias("val-legacy"))
-  .addCommand(deployGraphCommand);
+  .addCommand(deployGraphCommand)
+  .addCommand(testCommand);

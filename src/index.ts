@@ -11,8 +11,8 @@ const program = new Command();
 
 program
   .name("flutch")
-  .description("CLI tool for managing Amelie graph versions and deployments")
-  .version("1.0.0");
+  .description("CLI tool for managing Flutch graph versions and deployments")
+  .version("0.0.1");
 
 // Add graph management commands
 program.addCommand(graphCommands);
@@ -27,18 +27,13 @@ program.addCommand(toolsCatalogCommand);
 program.addCommand(configCommand);
 program.addCommand(whoamiCommand);
 
-// Global error handling
-program.exitOverride();
-
-process.on("uncaughtException", error => {
-  console.error(chalk.red("\n✗ Uncaught Exception:"), error.message);
-  process.exit(1);
-});
-
-process.on("unhandledRejection", reason => {
-  console.error(chalk.red("\n✗ Unhandled Rejection:"), reason);
-  process.exit(1);
-});
-
 // Parse command line arguments
-program.parse();
+try {
+  program.parse();
+} catch (error) {
+  // Suppress commander's exitOverride errors for help/version
+  if (error instanceof Error && !error.message.includes("outputHelp")) {
+    console.error(chalk.red("\n✗ Error:"), error.message);
+    process.exit(1);
+  }
+}
