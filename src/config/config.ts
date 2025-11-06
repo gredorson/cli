@@ -20,28 +20,47 @@ const projectConfigSchema = Joi.alternatives().try(
   })
 );
 
-// Schema for global ~/.flutch/config.json
-const globalConfigSchema = Joi.object({
-  environments: Joi.object()
-    .pattern(
-      Joi.string(),
-      Joi.object({
-        apiUrl: Joi.string().uri().required(),
-        apiKey: Joi.string().required(),
-        companyId: Joi.string().optional(),
-        companySlug: Joi.string().optional(),
-        userEmail: Joi.string().email().optional(),
-      })
-    )
-    .required(),
-  defaultEnvironment: Joi.string().required(),
-  auth: Joi.object({
-    cognitoDomain: Joi.string().optional(),
-    cognitoClientId: Joi.string().optional(),
-    cognitoRegion: Joi.string().optional(),
-    frontendUrl: Joi.string().uri().optional(),
-  }).optional(),
-}).required();
+// Schema for global ~/.flutch/config.json (supports both old and new format)
+const globalConfigSchema = Joi.alternatives().try(
+  // New simple format
+  Joi.object({
+    apiUrl: Joi.string().uri().required(),
+    apiKey: Joi.string().required(),
+    siteName: Joi.string().optional(),
+    companyId: Joi.string().allow("").optional(),
+    companySlug: Joi.string().allow("").optional(),
+    userEmail: Joi.string().email().optional(),
+    auth: Joi.object({
+      cognitoDomain: Joi.string().optional(),
+      cognitoClientId: Joi.string().optional(),
+      cognitoRegion: Joi.string().optional(),
+      frontendUrl: Joi.string().uri().optional(),
+      cliAuthUrl: Joi.string().uri().optional(),
+    }).optional(),
+  }),
+  // Old environments format
+  Joi.object({
+    environments: Joi.object()
+      .pattern(
+        Joi.string(),
+        Joi.object({
+          apiUrl: Joi.string().uri().required(),
+          apiKey: Joi.string().required(),
+          companyId: Joi.string().optional(),
+          companySlug: Joi.string().optional(),
+          userEmail: Joi.string().email().optional(),
+        })
+      )
+      .required(),
+    defaultEnvironment: Joi.string().required(),
+    auth: Joi.object({
+      cognitoDomain: Joi.string().optional(),
+      cognitoClientId: Joi.string().optional(),
+      cognitoRegion: Joi.string().optional(),
+      frontendUrl: Joi.string().uri().optional(),
+    }).optional(),
+  })
+);
 
 export interface GlobalConfigFile {
   environments: {
