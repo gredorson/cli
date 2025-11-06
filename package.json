@@ -23,6 +23,7 @@
   "author": "Flutch Team",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.922.0",
     "axios": "^1.0.0",
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.3",
@@ -30,6 +31,8 @@
     "cosmiconfig": "^8.0.0",
     "inquirer": "^8.2.5",
     "joi": "^17.9.0",
+    "jwt-decode": "^4.0.0",
+    "open": "^10.2.0",
     "ora": "^5.4.1"
   },
   "devDependencies": {

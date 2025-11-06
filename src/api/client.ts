@@ -1,10 +1,12 @@
-import axios, { AxiosInstance, AxiosResponse } from "axios";
+import axios, { AxiosInstance, AxiosResponse, AxiosError } from "axios";
 import chalk from "chalk";
+import { getValidIdToken, loadTokens, refreshAccessToken, clearTokens } from "../auth/token-storage";
 
 export interface FlutchConfig {
   apiUrl: string;
   apiKey: string;
   environment: string;
+  siteName?: string;
   companyId?: string;
   companySlug?: string;
   userEmail?: string;
@@ -100,32 +102,81 @@ export interface ModelCatalogItem {
 
 export class ApiClient {
   private axios: AxiosInstance;
+  private refreshPromise: Promise<void> | null = null;
 
   constructor(private config: FlutchConfig) {
     this.axios = axios.create({
       baseURL: config.apiUrl,
       headers: {
         "x-internal-token": config.apiKey,
+        "x-site-name": config.siteName || "flutch",
         "Content-Type": "application/json",
       },
       timeout: 30000,
     });
 
-    // Add request interceptor for logging
-    this.axios.interceptors.request.use(config => {
+    // Add request interceptor for logging and JWT token injection
+    this.axios.interceptors.request.use(async config => {
       console.log(chalk.dim(`→ ${config.method?.toUpperCase()} ${config.url}`));
+
+      // Try to get JWT ID token (if user is logged in via OAuth)
+      // We use ID token instead of access token because backend verifier expects tokenUse: "id"
+      const token = await getValidIdToken();
+      if (token) {
+        // Use JWT token instead of x-internal-token
+        config.headers.Authorization = `Bearer ${token}`;
+        delete config.headers["x-internal-token"];
+      }
+
       return config;
     });
 
-    // Add response interceptor for error handling
+    // Add response interceptor for error handling and token refresh
     this.axios.interceptors.response.use(
       response => response,
-      error => {
+      async (error: AxiosError) => {
+        // Check if we should attempt token refresh
+        if (this.shouldRefreshToken(error)) {
+          // Check if we have a refresh token
+          const tokens = loadTokens();
+          if (tokens?.refreshToken && tokens.refreshToken !== "") {
+            try {
+              // Try to refresh token (only once)
+              await this.refreshAuthToken();
+
+              // Retry the original request with new ID token
+              const token = await getValidIdToken();
+              if (token && error.config) {
+                error.config.headers.Authorization = `Bearer ${token}`;
+                delete error.config.headers["x-internal-token"];
+                return this.axios.request(error.config);
+              }
+            } catch (refreshError) {
+              // Token refresh failed - clear tokens and let user know
+              clearTokens();
+              console.error(
+                chalk.red("✗ Authentication failed:"),
+                "Token expired. Please login again with 'flutch login'"
+              );
+              throw refreshError;
+            }
+          } else {
+            // No refresh token - just clear and inform user
+            clearTokens();
+            console.error(
+              chalk.red("✗ Authentication failed:"),
+              "Token expired. Please login again with 'flutch login'"
+            );
+          }
+        }
+
+        // Handle errors
         if (error.response) {
           const { status, data } = error.response;
+          const errorData = data as any;
           console.error(
             chalk.red(`✗ API Error ${status}:`),
-            data?.message || data
+            errorData?.message || data
           );
         } else if (error.request) {
           console.error(
@@ -138,6 +189,50 @@ export class ApiClient {
         throw error;
       }
     );
+  }
+
+  /**
+   * Check if we should attempt token refresh
+   */
+  private shouldRefreshToken(error: AxiosError): boolean {
+    // Only attempt refresh once per error (check if we already have a refresh in progress)
+    if (this.refreshPromise) {
+      return false;
+    }
+
+    // Only attempt refresh if we have tokens and request used JWT auth
+    const usedJwtAuth = error.config?.headers?.Authorization?.toString().startsWith('Bearer ');
+    if (!usedJwtAuth) {
+      return false;
+    }
+
+    // Check if this is a token expiration error (401)
+    return error.response?.status === 401;
+  }
+
+  /**
+   * Refresh authentication token (with race condition protection)
+   */
+  private async refreshAuthToken(): Promise<void> {
+    // Protect from race condition - only one refresh at a time
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const tokens = loadTokens();
+        if (!tokens?.refreshToken) {
+          throw new Error("No refresh token available");
+        }
+
+        await refreshAccessToken(tokens.refreshToken);
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   /**
@@ -181,17 +276,29 @@ export class ApiClient {
 
   /**
    * List all graphs or versions of specific base type
+   * Uses admin endpoint with JWT authentication
    */
-  async listGraphs(baseType?: string): Promise<GraphCatalogItem[]> {
+  async listGraphs(
+    baseType?: string,
+    scope?: "my-company" | "all"
+  ): Promise<GraphCatalogItem[]> {
     const url = baseType
-      ? `/api/graph-registry/graphs/${encodeURIComponent(baseType)}/versions`
-      : "/api/graph-registry/graphs";
+      ? `/admin/graph-catalog/versions`
+      : "/admin/graph-catalog";
+
+    const params: any = scope ? { scope } : {};
+    if (baseType) {
+      params.baseType = baseType;
+    }
 
     const response: AxiosResponse<{
-      graphs: GraphCatalogItem[];
+      items: GraphCatalogItem[];
       total: number;
-    }> = await this.axios.get(url);
-    return response.data.graphs;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }> = await this.axios.get(url, { params });
+    return response.data.items;
   }
 
   /**

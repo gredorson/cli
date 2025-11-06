@@ -2,28 +2,37 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import { ApiClient } from "../../api/client";
-import { ConfigManager } from "../../config/config";
+import { getConfig } from "../../config";
 
 interface ListOptions {
   environment?: string;
   apiKey?: string;
   status?: string;
   format?: "table" | "json";
+  company?: boolean;
+  all?: boolean;
+  config?: string;
 }
 
 export const listGraphsCommand = new Command("list")
   .description("List graphs and their versions")
   .argument("[baseType]", 'Base type to filter by (e.g., "global.simple")')
   .option("-e, --environment <env>", "Environment to use")
+  .option("-c, --config <path>", "Path to config file")
   .option("-k, --api-key <key>", "API key for authentication")
   .option(
     "-s, --status <status>",
     "Filter by status (development, beta, stable, deprecated)"
   )
   .option("-f, --format <format>", "Output format (table, json)", "table")
-  .action(async (baseType: string | undefined, options: ListOptions) => {
+  .option("--company", "Show graphs from your company (default)")
+  .option("--all", "Show all accessible graphs (public + company)")
+  .action(async (baseType: string | undefined, options: ListOptions, command) => {
     try {
-      await listGraphs(baseType, options);
+      // Merge global options from parent command
+      const globalOpts = command.parent?.parent?.opts() || {};
+      const mergedOptions = { ...options, ...globalOpts };
+      await listGraphs(baseType, mergedOptions);
     } catch (error) {
       console.error(chalk.red("✗ Failed to list graphs:"), error);
       process.exit(1);
@@ -38,8 +47,7 @@ async function listGraphs(
 
   try {
     // Load configuration
-    const configManager = new ConfigManager();
-    const config = configManager.getEnvironmentConfig(options.environment);
+    const config = getConfig(options.config);
 
     // Override API key if provided
     if (options.apiKey) {
@@ -48,8 +56,16 @@ async function listGraphs(
 
     const apiClient = new ApiClient(config);
 
+    // Determine scope
+    let scope: "my-company" | "all" = "my-company";
+    if (options.all) {
+      scope = "all";
+    } else if (options.company) {
+      scope = "my-company";
+    }
+
     // Fetch graphs
-    const graphs = await apiClient.listGraphs(baseType);
+    const graphs = await apiClient.listGraphs(baseType, scope);
 
     // Filter by status if specified
     const filteredGraphs = options.status
