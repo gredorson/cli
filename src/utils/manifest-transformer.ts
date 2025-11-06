@@ -108,7 +108,8 @@ export async function transformUnifiedToLegacy(
     const legacyManifest: GraphManifest = {
       graphType,
       baseType,
-      companyId: companyId || unifiedManifest.companySlug, // Use provided companyId or fallback to companySlug
+      // Don't send companyId - let backend use it from JWT token
+      // companyId: companyId || unifiedManifest.companySlug,
       name: unifiedManifest.name,
       graphVersion: ver,
       title: unifiedManifest.title,

@@ -171,7 +171,21 @@ export class ConfigManager {
       process.exit(1);
     }
 
-    // 4. Determine which environment to use
+    // Check if new simple format (has apiUrl directly)
+    if ((globalConfig as any).apiUrl) {
+      // New simple format - return directly
+      return {
+        environment: "default",
+        apiUrl: (globalConfig as any).apiUrl,
+        apiKey: (globalConfig as any).apiKey,
+        siteName: (globalConfig as any).siteName,
+        companyId: (globalConfig as any).companyId,
+        companySlug: (globalConfig as any).companySlug,
+        userEmail: (globalConfig as any).userEmail,
+      };
+    }
+
+    // 4. Old format: Determine which environment to use
     const envName =
       environment ||
       projectConfig?.environment ||
