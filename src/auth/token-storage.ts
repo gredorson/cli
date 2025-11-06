@@ -121,19 +121,41 @@ export async function getValidAccessToken(): Promise<string | null> {
 /**
  * Refresh access token using refresh token
  */
-export async function refreshAccessToken(refreshToken: string): Promise<TokenData> {
+export async function refreshAccessToken(
+  refreshToken: string,
+  cognitoClientId?: string,
+  cognitoRegion?: string
+): Promise<TokenData> {
+  // Try to get config from auth-config if not provided
+  if (!cognitoClientId || !cognitoRegion) {
+    try {
+      const { getAuthConfig } = await import("../config/auth-config");
+      const authConfig = getAuthConfig();
+      if (authConfig) {
+        cognitoClientId = cognitoClientId || authConfig.cognitoClientId;
+        cognitoRegion = cognitoRegion || authConfig.cognitoRegion;
+      }
+    } catch (error) {
+      // Ignore if config not available
+    }
+  }
+
+  if (!cognitoClientId || !cognitoRegion) {
+    throw new Error("Cognito configuration not available for token refresh");
+  }
+
   const {
     CognitoIdentityProviderClient,
     InitiateAuthCommand,
   } = await import("@aws-sdk/client-cognito-identity-provider");
 
   const client = new CognitoIdentityProviderClient({
-    region: process.env.AWS_REGION || "eu-central-1",
+    region: cognitoRegion,
   });
 
   const command = new InitiateAuthCommand({
     AuthFlow: "REFRESH_TOKEN_AUTH",
-    ClientId: process.env.COGNITO_CLIENT_ID || "",
+    ClientId: cognitoClientId,
     AuthParameters: {
       REFRESH_TOKEN: refreshToken,
     },

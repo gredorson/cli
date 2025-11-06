@@ -4,7 +4,7 @@ import ora from "ora";
 import { promises as fs } from "fs";
 import path from "path";
 import { ApiClient, GraphManifest } from "../../api/client";
-import { ConfigManager } from "../../config/config";
+import { getConfig } from "../../config";
 
 interface RegisterOptions {
   environment?: string;
@@ -12,12 +12,14 @@ interface RegisterOptions {
   dryRun?: boolean;
   status?: "development" | "beta" | "stable" | "deprecated";
   publish?: boolean;
+  config?: string;
 }
 
 export const registerGraphCommand = new Command("register")
   .description("Register a graph from manifest file")
   .argument("<manifestPath>", "Path to graph manifest JSON file")
   .option("-e, --environment <env>", "Environment to use (dev, staging, prod)")
+  .option("-c, --config <path>", "Path to config file")
   .option("-k, --api-key <key>", "API key for authentication")
   .option("--dry-run", "Validate manifest without registering")
   .option(
@@ -36,9 +38,12 @@ Examples:
   flutch graph register manifest.json --dry-run    # Validate only
 `
   )
-  .action(async (manifestPath: string, options: RegisterOptions) => {
+  .action(async (manifestPath: string, options: RegisterOptions, command) => {
     try {
-      await registerGraph(manifestPath, options);
+      // Merge global options from parent command
+      const globalOpts = command.parent?.parent?.opts() || {};
+      const mergedOptions = { ...options, ...globalOpts };
+      await registerGraph(manifestPath, mergedOptions);
     } catch (error) {
       console.error(chalk.red("✗ Registration failed:"), error);
       process.exit(1);
@@ -63,8 +68,7 @@ async function registerGraph(
     validateManifestStructure(manifest);
 
     // Load configuration
-    const configManager = new ConfigManager();
-    const config = configManager.getEnvironmentConfig(options.environment);
+    const config = getConfig(options.config);
 
     // Override API key if provided
     if (options.apiKey) {

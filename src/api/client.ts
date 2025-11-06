@@ -237,10 +237,11 @@ export class ApiClient {
 
   /**
    * Register a graph from manifest
+   * Uses admin endpoint with JWT authentication
    */
   async registerGraph(manifest: GraphManifest): Promise<GraphCatalogItem> {
     const response: AxiosResponse<GraphCatalogItem> = await this.axios.post(
-      "/api/graph-registry/register",
+      "/admin/graph-catalog/register",
       manifest
     );
     return response.data;
@@ -262,13 +263,14 @@ export class ApiClient {
 
   /**
    * Update graph status (publish/unpublish)
+   * Uses admin endpoint with JWT authentication
    */
   async updateGraphStatus(
     graphType: string,
     status: "development" | "beta" | "stable" | "deprecated"
   ): Promise<GraphCatalogItem> {
     const response: AxiosResponse<GraphCatalogItem> = await this.axios.patch(
-      `/api/graph-registry/${encodeURIComponent(graphType)}/status`,
+      `/admin/graph-catalog/${encodeURIComponent(graphType)}/status`,
       { status }
     );
     return response.data;

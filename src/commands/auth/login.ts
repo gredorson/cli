@@ -78,6 +78,7 @@ async function loginHandler(options: { config?: string }, command: any) {
   const configFile = options.config || command.parent?.opts().config;
 
   console.log(chalk.blue("🔐 Starting Flutch CLI authentication...\n"));
+  console.log(chalk.dim(`Config file: ${configFile || 'default'}`));
 
   const authConfig = getAuthConfig(configFile);
 
@@ -217,4 +218,5 @@ export const logoutCommand = new Command("logout")
 
 export const whoamiCommand = new Command("whoami")
   .description("Show current authenticated user")
+  .option("-c, --config <path>", "Path to config file")
   .action(whoamiHandler);
